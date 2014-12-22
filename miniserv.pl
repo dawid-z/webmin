@@ -1235,41 +1235,6 @@ $authuser = undef;
 $validated = undef;
 
 
-# If a remote IP is given in a header (such as via a proxy), only use it
-# for logging unless trust_real_ip is set
-local $headerhost = $header{'x-forwarded-for'} ||
-		    $header{'x-real-ip'};
-if ($config{'trust_real_ip'}) {
-	$acpthost = $headerhost || $acpthost;
-	if (&check_ipaddress($headerhost) || &check_ip6address($headerhost)) {
-		# If a remote IP was given, use it for all access control checks
-		# from now on.
-		$acptip = $headerhost;
-		}
-	$loghost = $acpthost;
-	}
-else {
-	$loghost = $headerhost || $loghost;
-	}
-
-	
-# check address against access list
-if (@deny && &ip_match($acptip, $localip, @deny) ||
-    @allow && !&ip_match($acptip, $localip, @allow)) {
-	&http_error(403, "Access denied for $acptip");
-	return 0;
-	}
-
-if ($use_libwrap) {
-	# Check address with TCP-wrappers
-	if (!hosts_ctl($config{'pam'}, STRING_UNKNOWN,
-		       $acptip, STRING_UNKNOWN)) {
-		&http_error(403, "Access denied for $acptip by TCP wrappers");
-		return 0;
-		}
-	}
-print DEBUG "handle_request: passed IP checks\n";
-
 # Compute a timeout for the start of headers, based on the number of
 # child processes. As this increases, we use a shorter timeout to avoid
 # an attacker overloading the system.
@@ -1423,7 +1388,40 @@ while(1) {
 		}
 	}
 
+# If a remote IP is given in a header (such as via a proxy), only use it
+# for logging unless trust_real_ip is set
+local $headerhost = $header{'x-forwarded-for'} ||
+		    $header{'x-real-ip'};
+if ($config{'trust_real_ip'}) {
+	$acpthost = $headerhost || $acpthost;
+	if (&check_ipaddress($headerhost) || &check_ip6address($headerhost)) {
+		# If a remote IP was given, use it for all access control checks
+		# from now on.
+		$acptip = $headerhost;
+		}
+	$loghost = $acpthost;
+	}
+else {
+	$loghost = $headerhost || $loghost;
+	}
 
+# check address against access list
+if (@deny && &ip_match($acptip, $localip, @deny) ||
+    @allow && !&ip_match($acptip, $localip, @allow)) {
+	&http_error(403, "Access denied for $acptip");
+	return 0;
+	}
+
+if ($use_libwrap) {
+	# Check address with TCP-wrappers
+	if (!hosts_ctl($config{'pam'}, STRING_UNKNOWN,
+		       $acptip, STRING_UNKNOWN)) {
+		&http_error(403, "Access denied for $acptip by TCP wrappers");
+		return 0;
+		}
+	}
+print DEBUG "handle_request: passed IP checks\n";
+	
 if (defined($header{'host'})) {
 	if ($header{'host'} =~ /^\[(.+)\]:([0-9]+)$/) {
 		($host, $port) = ($1, $2);
