@@ -1234,6 +1234,25 @@ $reqline = $request_uri = $page = undef;
 $authuser = undef;
 $validated = undef;
 
+
+# If a remote IP is given in a header (such as via a proxy), only use it
+# for logging unless trust_real_ip is set
+local $headerhost = $header{'x-forwarded-for'} ||
+		    $header{'x-real-ip'};
+if ($config{'trust_real_ip'}) {
+	$acpthost = $headerhost || $acpthost;
+	if (&check_ipaddress($headerhost) || &check_ip6address($headerhost)) {
+		# If a remote IP was given, use it for all access control checks
+		# from now on.
+		$acptip = $headerhost;
+		}
+	$loghost = $acpthost;
+	}
+else {
+	$loghost = $headerhost || $loghost;
+	}
+
+	
 # check address against access list
 if (@deny && &ip_match($acptip, $localip, @deny) ||
     @allow && !&ip_match($acptip, $localip, @allow)) {
@@ -1404,22 +1423,6 @@ while(1) {
 		}
 	}
 
-# If a remote IP is given in a header (such as via a proxy), only use it
-# for logging unless trust_real_ip is set
-local $headerhost = $header{'x-forwarded-for'} ||
-		    $header{'x-real-ip'};
-if ($config{'trust_real_ip'}) {
-	$acpthost = $headerhost || $acpthost;
-	if (&check_ipaddress($headerhost) || &check_ip6address($headerhost)) {
-		# If a remote IP was given, use it for all access control checks
-		# from now on.
-		$acptip = $headerhost;
-		}
-	$loghost = $acpthost;
-	}
-else {
-	$loghost = $headerhost || $loghost;
-	}
 
 if (defined($header{'host'})) {
 	if ($header{'host'} =~ /^\[(.+)\]:([0-9]+)$/) {
